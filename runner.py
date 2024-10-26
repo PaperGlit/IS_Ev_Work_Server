@@ -1,28 +1,47 @@
 import os
 from db import DB
 from md4 import MD4
-from Crypto.Hash import MD4 as RMD4
+import mysql.connector
+from flask import Flask, request, jsonify
 
-def md4_hash(value, salt):
-    hash_obj = RMD4.new()
-    hash_obj.update(value.encode('utf-8') + salt)
-    return hash_obj.hexdigest()
 
-password = "143256"
-salt = os.urandom(16)
+app = Flask(__name__)
 
-real_md4 = md4_hash(password, salt)
+@app.before_request
+def before_request():
+    if not request.is_secure:
+        request.url.replace("http://", "https://", 1)
+        return jsonify({"status": "Please use HTTPS"}), 403
 
-md4_tested = MD4(password.encode('utf-8') + salt).hexdigest()
-if real_md4 == md4_tested:
-    print(f"Hashed value: {md4_tested}")
-else:
-    print("Hashed value is not the same")
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.json
+    user_name = data['name']
+    user_login = data['login']
+    user_password = data['password']
+    salt = os.urandom(16)
+    hashed_password = MD4(user_password.encode("utf-8") + salt).hexdigest()
+    DB().register(user_name, user_login, hashed_password, salt)
+    return jsonify({"status": "User registered successfully"}), 201
 
-DB().register("John", "johnjohnson", md4_tested, salt)
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    user_login = data['login']
+    user_password = data['password']
+    try:
+        salt = DB().get_salt(user_login)
+    except TypeError as err:
+        return jsonify({"status": err}), 401
+    except mysql.connector.Error as err:
+        return jsonify({"status": err}), 401
+    hashed_password = MD4(user_password.encode('utf-8') + salt).hexdigest()
+    name = DB().login(user_login, hashed_password)
+    if name:
+        return jsonify({"status": f"Login successful. Hello, {name}"}), 200
+    else:
+        return jsonify({"status": "Login failed"}), 401
 
-new_salt = DB().get_salt("johnjohnson")
-md4_tested = MD4(password.encode('utf-8') + new_salt).hexdigest()
 
-if DB().login("johnjohnson", md4_tested):
-    print("Login successful")
+if __name__ == '__main__':
+    app.run(debug=True, ssl_context=('cert.pem', 'key.pem'))

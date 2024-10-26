@@ -1,3 +1,4 @@
+import re
 import time
 import base64
 import mysql.connector
@@ -13,19 +14,21 @@ class DB:
         self.connect()
 
     def connect(self):
-        try:
-            self.conn = mysql.connector.connect(
-                host=self.host,
-                user=self.user,
-                passwd=self.passwd,
-                database=self.db
-            )
-            if self.conn.is_connected():
-                print("Connected to MySQL database")
-        except mysql.connector.Error as err:
-            print(f"An error occurred during connection: {err}")
-            time.sleep(10)
-            self.connect()
+        for _ in range(5):
+            try:
+                self.conn = mysql.connector.connect(
+                    host=self.host,
+                    user=self.user,
+                    passwd=self.passwd,
+                    database=self.db
+                )
+                if self.conn.is_connected():
+                    print("Connected to MySQL database")
+                    return
+            except mysql.connector.Error as err:
+                print(f"An error occurred during connection: {err}")
+                time.sleep(2)
+        print("Failed to connect to the database after multiple attempts.")
 
     def reconnect(self):
         if not self.conn or not self.conn.is_connected():
@@ -33,48 +36,61 @@ class DB:
             self.connect()
 
     def register(self, name, login, password, salt):
+        if not self.is_valid_username(login):
+            raise ValueError("Invalid username format.")
+        if not self.is_valid_password(password):
+            raise ValueError("Invalid password format.")
         self.reconnect()
-        cursor = self.conn.cursor()
         salt = base64.b64encode(salt).decode('utf-8')
         sql = "INSERT INTO users VALUES (NULL, %s, %s, %s, %s)"
         val = (name, login, password, salt)
         try:
-            cursor.execute(sql, val)
-            self.conn.commit()
-            print(f"An account with ID {cursor.lastrowid} has been registered successfully.")
+            with self.conn.cursor() as cursor:
+                cursor.execute(sql, val)
+                self.conn.commit()
+                print(f"An account with ID {cursor.lastrowid} has been registered successfully.")
         except mysql.connector.errors.IntegrityError:
             self.conn.rollback()
-            print(f"Error: user login \"{login}\" already exists")
+            raise mysql.connector.errors.IntegrityError(f"Error: user login \"{login}\" already exists")
         except mysql.connector.Error as err:
             self.conn.rollback()
-            print(f"An error occurred during registration: {err}")
+            raise mysql.connector.Error(f"An error occurred during registration: {err}")
 
     def login(self, login, password):
         self.reconnect()
-        cursor = self.conn.cursor()
         sql = "SELECT username FROM users WHERE userlogin = %s AND userpassword = %s"
         val = (login, password)
         try:
-            cursor.execute(sql, val)
-            name = cursor.fetchone()[0]
-            self.conn.commit()
-            print("Successfully logged in.")
-            return name
-        except TypeError as err:
-            print("Error: no account with these credentials was found")
+            with self.conn.cursor() as cursor:
+                cursor.execute(sql, val)
+                name = cursor.fetchone()[0]
+                print("Successfully logged in.")
+                return name
+        except TypeError:
+            raise TypeError("Error: no account with these credentials was found")
         except mysql.connector.Error as err:
-            print(f"An error occurred during login: {err}")
-            return False
+            raise mysql.connector.Error(f"An error occurred during login: {err}")
 
     def get_salt(self, login):
         self.reconnect()
-        cursor = self.conn.cursor()
-        sql = "SELECT usersalt FROM users WHERE userlogin = %s"
-        val = (login,)
-        try:
-            cursor.execute(sql, val)
-            salt = cursor.fetchone()[0]
-            return base64.b64decode(salt)
-        except mysql.connector.Error:
-            print(f"An account with this username does not exist")
-            return False
+        with self.conn.cursor() as cursor:
+            sql = "SELECT usersalt FROM users WHERE userlogin = %s"
+            val = (login,)
+            try:
+                cursor.execute(sql, val)
+                salt = cursor.fetchone()[0]
+                return base64.b64decode(salt)
+            except TypeError:
+                print("Error: no account with these credentials was found")
+                return False
+            except mysql.connector.Error:
+                print(f"An account with this username does not exist")
+                return False
+
+    @staticmethod
+    def is_valid_username(username):
+        return bool(re.match("^[a-zA-Z0-9_]{3,30}$", username))
+
+    @staticmethod
+    def is_valid_password(password):
+        return bool(re.match("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&-+=()])(?=\\S+$).{8, 20}$", password))
