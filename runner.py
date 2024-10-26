@@ -1,27 +1,28 @@
-import mysql.connector
-from md4 import MD4 as other_md4
-from Crypto.Hash import MD4
+import os
+from db import DB
+from md4 import MD4
+from Crypto.Hash import MD4 as RMD4
 
-def md4_hash(value):
-    hash_obj = MD4.new()
-    hash_obj.update(value.encode('utf-8'))  # Encode the string in UTF-8
-    return hash_obj.hexdigest()  # Return the hexadecimal digest
+def md4_hash(value, salt):
+    hash_obj = RMD4.new()
+    hash_obj.update(value.encode('utf-8') + salt)
+    return hash_obj.hexdigest()
 
-# user_db = mysql.connector.connect(
-#     host="localhost",
-#     user="root",
-#     passwd="root",
-# )
-#
-# db_cursor = user_db.cursor()
-#
-# sql = "INSERT INTO is_ev_db.users VALUES (NULL, %s, %s, %s, %s)"
-# val = ("John", "johnjohnson", "12345667", "1241416546")
-# db_cursor.execute(sql, val)
-#
-# user_db.commit()
-#
-# print(db_cursor.rowcount, "record inserted.")
-hashed_value = md4_hash("")
-print("MD4 Hash:", hashed_value)
-print(other_md4.hash(""))
+password = "143256"
+salt = os.urandom(16)
+
+real_md4 = md4_hash(password, salt)
+
+md4_tested = MD4(password.encode('utf-8') + salt).hexdigest()
+if real_md4 == md4_tested:
+    print(f"Hashed value: {md4_tested}")
+else:
+    print("Hashed value is not the same")
+
+DB().register("John", "johnjohnson", md4_tested, salt)
+
+new_salt = DB().get_salt("johnjohnson")
+md4_tested = MD4(password.encode('utf-8') + new_salt).hexdigest()
+
+if DB().login("johnjohnson", md4_tested):
+    print("Login successful")
