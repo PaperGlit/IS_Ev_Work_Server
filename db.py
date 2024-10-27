@@ -1,4 +1,3 @@
-import re
 import time
 import base64
 import mysql.connector
@@ -23,7 +22,6 @@ class DB:
                     database=self.db
                 )
                 if self.conn.is_connected():
-                    print("Connected to MySQL database")
                     return
             except mysql.connector.Error as err:
                 print(f"An error occurred during connection: {err}")
@@ -32,14 +30,9 @@ class DB:
 
     def reconnect(self):
         if not self.conn or not self.conn.is_connected():
-            print("Reconnecting to the database...")
             self.connect()
 
     def register(self, name, login, password, salt):
-        if not self.is_valid_username(login):
-            raise ValueError("Invalid username format.")
-        if not self.is_valid_password(password):
-            raise ValueError("Invalid password format.")
         self.reconnect()
         salt = base64.b64encode(salt).decode('utf-8')
         sql = "INSERT INTO users VALUES (NULL, %s, %s, %s, %s)"
@@ -64,7 +57,6 @@ class DB:
             with self.conn.cursor() as cursor:
                 cursor.execute(sql, val)
                 name = cursor.fetchone()[0]
-                print("Successfully logged in.")
                 return name
         except TypeError:
             raise TypeError("Error: no account with these credentials was found")
@@ -81,16 +73,6 @@ class DB:
                 salt = cursor.fetchone()[0]
                 return base64.b64decode(salt)
             except TypeError:
-                print("Error: no account with these credentials was found")
-                return False
+                raise TypeError("Error: no account with these credentials was found")
             except mysql.connector.Error:
-                print(f"An account with this username does not exist")
-                return False
-
-    @staticmethod
-    def is_valid_username(username):
-        return bool(re.match("^[a-zA-Z0-9_]{3,30}$", username))
-
-    @staticmethod
-    def is_valid_password(password):
-        return bool(re.match("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&-+=()])(?=\\S+$).{8, 20}$", password))
+                raise mysql.connector.Error(f"An account with username \"{login}\" does not exist")
