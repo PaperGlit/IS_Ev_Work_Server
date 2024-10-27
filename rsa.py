@@ -1,5 +1,5 @@
-import random
 import math
+import random
 
 
 class RSA:
@@ -39,8 +39,8 @@ class RSA:
         d = pow(e, -1, phi)
         return (n, e), (n, d)
 
-    def decrypt(self, message):
-        n, d = self.private_key
+    @staticmethod
+    def decrypt(private_key, message):
+        n, d = private_key
         decrypted_message = ''.join([chr(pow(char, d, n)) for char in message])
         return decrypted_message
-

@@ -26,7 +26,7 @@ class DB:
             except mysql.connector.Error as err:
                 print(f"An error occurred during connection: {err}")
                 time.sleep(2)
-        print("Failed to connect to the database after multiple attempts.")
+        raise mysql.connector.Error("Failed to connect to the database after multiple attempts.")
 
     def reconnect(self):
         if not self.conn or not self.conn.is_connected():
