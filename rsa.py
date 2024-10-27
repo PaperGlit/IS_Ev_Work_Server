@@ -39,9 +39,8 @@ class RSA:
         d = pow(e, -1, phi)
         return (n, e), (n, d)
 
-    @staticmethod
-    def decrypt(private_key, message):
-        n, d = private_key
+    def decrypt(self, message):
+        n, d = self.private_key
         decrypted_message = ''.join([chr(pow(char, d, n)) for char in message])
         return decrypted_message
 

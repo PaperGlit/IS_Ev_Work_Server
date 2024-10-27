@@ -26,8 +26,11 @@ def register():
     user_name = rsa.decrypt(encoded_name)
     user_login = rsa.decrypt(encoded_login)
     user_password = rsa.decrypt(encoded_password)
-    if not is_valid_username(user_login):
+
+    if not is_valid_username(user_name):
         return jsonify({"status": "Invalid Username"}), 400
+    if not is_valid_login(user_login):
+        return jsonify({"status": "Invalid Login"}), 400
     if not is_valid_password(user_password):
         return jsonify({"status": "Invalid Password"}), 400
 
@@ -44,14 +47,14 @@ def login():
     user_login = rsa.decrypt(encrypted_login)
     user_password = rsa.decrypt(encrypted_password)
 
-    if not is_valid_username(user_login) or not is_valid_password(user_password):
-        return jsonify({"status": "Login failed"}), 401
+    if not is_valid_login(user_login) or not is_valid_password(user_password):
+        return jsonify({"status": "Login failed"}), 400
     try:
         salt = DB().get_salt(user_login)
     except TypeError as err:
         return jsonify({"status": err}), 401
     except mysql.connector.Error as err:
-        return jsonify({"status": err}), 401
+        return jsonify({"status": err}), 500
     hashed_password = MD4(user_password.encode('utf-8') + salt).hexdigest()
     name = DB().login(user_login, hashed_password)
     if name:
@@ -65,8 +68,11 @@ def send_key():
     rsa = RSA()
     return jsonify({"key": rsa.public_key}), 200
 
-def is_valid_username(username):
-    return bool(re.match("^[a-zA-Z0-9_]{3,30}$", username))
+def is_valid_username(user_name):
+    return bool(re.match(r"^[a-zA-Z- ]{,128}$", user_name))
+
+def is_valid_login(user_login):
+    return bool(re.match("^[a-zA-Z0-9_]{3,30}$", user_login))
 
 def is_valid_password(password):
     return bool(re.match("^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&-+=()])(?=\\S+$).{8,20}$", password))
