@@ -54,9 +54,6 @@ class Server:
 
         private_key = session.get('private_key')
 
-        if not all([encrypted_login, encrypted_password]):
-            return jsonify({"status": "Missing required fields"}), 400
-
         user_login = RSA.decrypt(private_key, encrypted_login)
         user_password = RSA.decrypt(private_key, encrypted_password)
 
